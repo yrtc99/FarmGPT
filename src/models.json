@@ -1,0 +1,10 @@
+[
+    {
+        "model": "Bloom-1b1-zh"
+        
+    },
+    {
+        "model": "gpt4all"
+        
+    }
+]

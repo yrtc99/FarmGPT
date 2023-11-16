@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+  
+}
+
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+} */
+@layer components{
+  .infoText {
+    @apply p-4 bg-gray-700/50 rounded-lg max-w-[240px] text-sm
+  }
+  .chatRow {
+    @apply rounded-lg px-2 py-2 text-sm flex items-center justify-center space-x-2 hover:bg-[#0B755C] cursor-pointer text-white transition-all duration-200 ease-out
+  }
+  .linerbutton {
+    @apply border rounded-lg p-2 text-xs hover:bg-[#ECECF1] hover:text-black cursor-pointer
+  }
+  .inputTitle {
+    @apply font-bold mt-2 text-gray-300 text-xs
+  }
+  .inputStyle {
+    @apply block w-full p-2 text-gray-900 border border-[#0B755C] rounded-lg  sm:text-xs  dark:bg-[#222222] dark:border-[#0B755C] dark:placeholder-gray-400 dark:text-white
+  }
+
+}
+body {
+  font-size:smaller;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
