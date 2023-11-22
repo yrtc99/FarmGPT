@@ -1,22 +1,32 @@
-"use client";
 
+"use client";
 import { db } from "@/firebase";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { SetStateAction, useEffect, useState } from "react";
 import { FormEvent } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+
+import { addDoc, collection, serverTimestamp, orderBy, query, onSnapshot, getDocs } from "firebase/firestore";
 import models from "../src/models.json";
 
 type Props = {
   chatId: string;
 };
 
+
 function ChatInput({ chatId }: Props) {
   const [prompt, setPrompt] = useState("");
   const { data: session } = useSession();
-  // Add state to hold the model's response
-  const [modelResponse, setModelResponse] = useState("");
 
+  // Add state to hold the model's response
+  const [vdbResponse, setVDBResponse] = useState(""); //VDB回答
+  const [modelResponse, setModelResponse] = useState("");
+  const [vdbResponse2, setVDBResponse2] = useState("");
+
+
+  //render model name when click btn
+  const [model, setModel] = useState("choose a model");
+
+  //send answer to VDB & get VDB's answer
   async function sendQuestion(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!prompt) return;
@@ -24,14 +34,15 @@ function ChatInput({ chatId }: Props) {
     const input = prompt.trim();
     setPrompt("");
 
+
     // 儲存 userMessages 的格式
     const userMessages = {
       text: input,
       createdAt: serverTimestamp(),
-      _id: session?.user?.email!,
-      name: session?.user?.name!,
-      avatar:
-        session?.user?.image! ||
+      _id: (session?.user?.email)!,
+      name: (session?.user?.name)!,
+      avatar: (
+        session?.user?.image)! ||
         `https"//ui-avatars.com/api/?name=${session?.user?.name}`,
     };
 
@@ -40,7 +51,7 @@ function ChatInput({ chatId }: Props) {
       collection(
         db,
         "users",
-        session?.user?.email!,
+        (session?.user?.email)!,
         "chats",
         chatId,
         "userMessages"
@@ -48,27 +59,89 @@ function ChatInput({ chatId }: Props) {
       userMessages
     );
 
+
+
     //模型處理
     if (model && input) {
-      
+
       // model選擇 which API_URL 
-            let route: string='';
-      if(model == 'Bloom-1b1-zh'){
+      let route: string = '';
+      if (model == 'Bloom-1b1-zh') {
         route = process.env.API_URL_BLOOM!;
       } else {
         route = process.env.API_URL_GPT4ALL!;
       }
+
       try {
+        const response = await fetch(`${process.env.VDB_URL}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: input,
+          }),
+        });
 
-        // wait timeout
-        // const wait = (milliseconds: number) => new Promise(
-        //   (res, rej) => setTimeout(
-        //     () => rej(new Error(`timed out after ${milliseconds} ms`)),
-        //     milliseconds
-        //   )
-        // );
+        if (!response.ok) {
+          throw new Error("回答取得失敗");
+        }
+
+        const data = await response.json();
+        const vdbAnswer = data.paperDataCh;
+        console.log("vdbAnswer: ", vdbAnswer);
+        // API回應的JSON中有一個名為"paperDataCh"的屬性，存放回答內容
+
+        // Set the VDB's response in the state
+        setVDBResponse(vdbAnswer);
+
+        //VDB回應儲存格式
+        const storeVDB = {
+          text: vdbAnswer,
+          createdAt: serverTimestamp(),
+        };
+        //the path to save 問題 into firebase
+        await addDoc(
+          collection(
+            db,
+            "users",
+            (session?.user?.email)!,
+            "chats",
+            chatId,
+            "VDBresponse"
+          ),
+          storeVDB
+        );
+      } catch (error) {
+        console.error(error);
+        // 處理發生錯誤時的情況，例如顯示錯誤訊息給使用者
+      }
 
 
+
+      //model處理VDB回答
+      try {
+        // const inputVDB = vdbResponse;
+        // const inputVDB = setVDBResponse(modelMessagesVDB.toString());
+        //從firebase抓VDB回答出來
+        const querySnapshot = await getDocs(
+          query(
+            collection(
+              db,
+              "users",
+              session?.user?.email!,
+              "chats",
+              chatId,
+              "VDBresponse"
+            ),
+            orderBy("createdAt")
+          )
+        );
+
+        const data2 = querySnapshot.docs.map((doc) => doc.data());
+        setVDBResponse(data2[data2.length - 1].text);
+        console.log("data QQ: ", data2[data2.length - 1].text);
+        
         const response = await fetch(`${route}`, {
           method: "POST",
           headers: {
@@ -77,19 +150,19 @@ function ChatInput({ chatId }: Props) {
           body: JSON.stringify({
             question: input,
             modelName: model,
+            paperDataCh: data2[data2.length - 1].text,
           }),
         });
-        
-        // // now the fetch 跟 wait Promise比誰的速度快
-        // const fetchOrTimeout = Promise.race([response, wait(10 * 60 * 1000)]);
-        
+
         if (!response.ok) {
           throw new Error("回答取得失敗");
-          
+
         }
+
 
         const data = await response.json();
         const answer = data.answer; // 假設API回應的JSON中有一個名為"answer"的屬性，存放回答內容
+
         // Set the model's response in the state
         setModelResponse(answer);
 
@@ -110,21 +183,19 @@ function ChatInput({ chatId }: Props) {
           ),
           modelMessages
         );
+
       } catch (error) {
         console.error(error);
         // 處理發生錯誤時的情況，例如顯示錯誤訊息給使用者
-        
       }
-    }
 
-    setPrompt("");
+      setPrompt("");
+
+    };
+
   }
 
   const [isOpen, setIsOpen] = useState(false);
-
-  //render model name when click btn
-
-  const [model, setModel] = useState("choose a model");
 
   // 點擊模型選項時觸發的功能
   const changeName = (selectedmodel: string) => {
@@ -180,8 +251,7 @@ function ChatInput({ chatId }: Props) {
             onChange={(e) => setPrompt(e.target.value)} //when types in, value update
             className="bg-transparent focus:outline-none flex-1 disabled:cursor-not-allowed disabled:text-gray-300"
             type="text"
-            placeholder="敬請發問任何農業的問題~有關作物、施肥、實作、預期成效..."
-          />
+            placeholder="敬請發問任何農業的問題~有關作物、施肥、實作、預期成效..." />
 
           <button
             disabled={!prompt || !session || model === "choose a model"}
@@ -199,8 +269,7 @@ function ChatInput({ chatId }: Props) {
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-              />
+                d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
             </svg>
           </button>
         </form>
@@ -208,5 +277,6 @@ function ChatInput({ chatId }: Props) {
     </div>
   );
 }
+
 
 export default ChatInput;
